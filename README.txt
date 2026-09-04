@@ -1,20 +1,21 @@
-# Web Scraper
+# HADIS RANDOM
 
-## 1. Deploy Worker
-Upload `worker.js` ke Cloudflare Workers.
+## Deploy
+1. Deploy `worker.js` ke Cloudflare Workers.
+2. Salin URL Worker.
+3. Buka `index.html`.
+4. Ganti:
+   GANTI_DENGAN_URL_WORKER_KAMU
+   dengan URL Worker kamu.
+5. Upload `index.html` ke hosting.
 
-## 2. Salin URL Worker
-Contoh:
-https://nama-worker.username.workers.dev
+## Endpoint test
+Setelah Worker aktif, buka:
+https://URL-WORKER-KAMU.workers.dev/scrape?url=https%3A%2F%2Fwww.hadits.id%2Fhadits%2Fmuslim%2F1
 
-## 3. Edit index.html
-Ubah:
-GANTI_DENGAN_URL_WORKER_KAMU
+Harus keluar JSON yang mempunyai:
+"success": true
+dan
+"html": "..."
 
-menjadi URL Worker kamu.
-
-## 4. Buka index.html
-Masukkan URL website target lalu klik AMBIL DATA.
-
-## Catatan
-Versi ini mengambil HTML yang dikirim server. Jika website target merender data menggunakan JavaScript di browser, data tersebut tidak selalu muncul di HTML hasil fetch. Untuk kasus tersebut diperlukan browser rendering/headless browser atau endpoint data yang memang dipanggil halaman tersebut.
+Frontend kemudian memilih nomor hadis secara acak dan mengambil halaman Hadits.id tersebut.

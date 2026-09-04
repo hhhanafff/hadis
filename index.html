@@ -5,30 +5,42 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Hadis Random</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#f5f5f5;color:#111;font-family:Arial,sans-serif}
-.wrap{max-width:850px;margin:45px auto;padding:20px}.card{background:#fff;border-radius:16px;padding:32px;box-shadow:0 5px 25px #00000012}
-.header{border-bottom:1px solid #eee;padding-bottom:18px;margin-bottom:25px}.kitab{font-size:18px;font-weight:700}.meta{font-size:14px;color:#777;margin-top:7px}
+*{box-sizing:border-box}
+body{margin:0;background:#f5f5f5;color:#111;font-family:Arial,sans-serif}
+.wrap{max-width:850px;margin:45px auto;padding:20px}
+.card{background:#fff;border-radius:16px;padding:32px;box-shadow:0 5px 25px #00000012}
+.header{border-bottom:1px solid #eee;padding-bottom:18px;margin-bottom:25px}
+.kitab{font-size:18px;font-weight:700}
+.meta{font-size:14px;color:#777;margin-top:7px}
 .status{display:inline-block;margin-top:12px;padding:6px 10px;border-radius:20px;background:#eaf7ed;color:#18743b;font-size:13px;font-weight:bold}
-.title{font-size:22px;line-height:1.5;margin:0 0 24px}.arab{font-family:"Times New Roman",serif;font-size:30px;line-height:2.2;text-align:right;direction:rtl;margin:25px 0}
-.translation{font-size:16px;line-height:1.9;color:#444}.source{font-size:12px;color:#999;margin-top:20px}
-button{width:100%;margin-top:25px;padding:16px;border:0;border-radius:9px;background:#111;color:white;font-size:15px;font-weight:bold;cursor:pointer}
-button:disabled{opacity:.5}.loading{text-align:center;color:#777;font-size:13px;margin-top:12px}.error{color:red}
+.title{font-size:22px;line-height:1.5;margin:0 0 24px}
+.arab{font-family:"Times New Roman",serif;font-size:30px;line-height:2.2;text-align:right;direction:rtl;margin:25px 0}
+.translation{font-size:16px;line-height:1.9;color:#444}
+.source{font-size:12px;color:#999;margin-top:20px;word-break:break-all}
+button{width:100%;margin-top:25px;padding:16px;border:0;border-radius:9px;background:#111;color:#fff;font-size:15px;font-weight:bold;cursor:pointer}
+button:disabled{opacity:.5}
+.loading{text-align:center;color:#777;font-size:13px;margin-top:12px}
+.error{color:red}
 </style>
 </head>
 <body>
-<div class="wrap"><div class="card">
-<div class="header">
-<div id="kitab" class="kitab">Hadis Random</div>
-<div id="meta" class="meta">Memuat hadis...</div>
-<div id="hadisStatus" class="status">—</div>
+<div class="wrap">
+<div class="card">
+  <div class="header">
+    <div id="kitab" class="kitab">Hadis Random</div>
+    <div id="meta" class="meta">Memuat hadis...</div>
+    <div id="hadisStatus" class="status">—</div>
+  </div>
+
+  <h1 id="title" class="title">—</h1>
+  <div id="arab" class="arab">—</div>
+  <div id="translation" class="translation">—</div>
+  <div id="source" class="source"></div>
+
+  <button id="btn" onclick="randomHadis()">HADIS RANDOM</button>
+  <div id="loading" class="loading"></div>
 </div>
-<h1 id="title" class="title">—</h1>
-<div id="arab" class="arab">—</div>
-<div id="translation" class="translation">—</div>
-<div id="source" class="source"></div>
-<button id="btn" onclick="randomHadis()">HADIS RANDOM</button>
-<div id="loading" class="loading"></div>
-</div></div>
+</div>
 
 <script>
 const API="GANTI_DENGAN_URL_WORKER_KAMU";
@@ -43,96 +55,130 @@ const BOOKS=[
  ["ahmad","Musnad Ahmad",27647]
 ];
 
-async function randomHadis(){
- const btn=document.getElementById("btn"), loading=document.getElementById("loading");
- btn.disabled=true; loading.textContent="Mengambil hadis...";
- try{
-   let found=null;
-   for(let i=0;i<15 && !found;i++){
-     const book=BOOKS[Math.floor(Math.random()*BOOKS.length)];
-     const no=Math.floor(Math.random()*book[2])+1;
-     const url=`https://www.hadits.id/hadits/${book[0]}/${no}`;
-     const r=await fetch(API+"/scrape?url="+encodeURIComponent(url));
-     if(!r.ok) continue;
-     const data=await r.json();
-     if(!data.html) continue;
-     found=parseHadis(data.html,book,url);
-   }
-   if(!found) throw new Error("Gagal mengambil hadis.");
-   render(found);
-   loading.textContent="";
- }catch(e){
-   loading.innerHTML='<span class="error">'+escapeHtml(e.message)+'</span>';
- }finally{btn.disabled=false}
+async function getPage(url){
+ const r=await fetch(API+"/scrape?url="+encodeURIComponent(url));
+ if(!r.ok) return null;
+ const j=await r.json();
+ return j.html||null;
 }
 
-function clean(s){
- return (s||"").replace(/\s+/g," ").trim();
-}
-
-function parseHadis(html,book,url){
+function parseHadits(html,book,url){
  const doc=new DOMParser().parseFromString(html,"text/html");
- const body=doc.body;
- if(!body) return null;
+ const lines=(doc.body?.innerText||"")
+   .split(/\r?\n/)
+   .map(x=>x.trim())
+   .filter(Boolean);
 
- // Judul utama halaman Hadits.id
- const h1=body.querySelector("h1");
- const title=clean(h1?.textContent);
- if(!title || !/Bab /i.test(title)) return null;
+ // Format aktual Hadits.id:
+ // "Shahih Muslim · Mukadimah · No. 1"
+ // "# Bab ..."
+ // "Shahih"
+ // Arab
+ // transliterasi
+ // "Selengkapnya Sembunyikan"
+ // terjemahan
+ const marker=lines.findIndex(x=>/·\s*No\.\s*\d+\s*$/.test(x));
+ if(marker<0) return null;
 
- // Seluruh teks halaman untuk metadata.
- const full=clean(body.innerText||"");
- const m=full.match(/([^·\n]+)\s*·\s*([^·\n]+)\s*·\s*No\.\s*(\d+)/);
- const kitab=clean(m?.[1])||book[1];
- const bab=clean(m?.[2]);
- const number=m?.[3]||"";
+ const meta=lines[marker];
+ const parts=meta.split("·").map(x=>x.trim());
+ const kitab=parts[0]||book[1];
+ const number=(meta.match(/No\.\s*(\d+)/)||[])[1]||"";
 
- // Status
- const statusMatch=full.match(/\b(Shahih|Hasan|Dhaif|Daif|Hasan Shahih)\b/i);
- const status=clean(statusMatch?.[1])||"Hadis";
+ let title=lines[marker+1]||"Hadis";
+ title=title.replace(/^#\s*/,"");
 
- // Cari blok yang mengandung huruf Arab.
- const blocks=[...body.querySelectorAll("p,div,span,article,section,blockquote")];
- let arab="";
- let arabIndex=-1;
+ let status="";
+ for(let i=marker+2;i<Math.min(lines.length,marker+6);i++){
+   if(/^(Shahih|Hasan|Dhaif|Daif|Hasan Shahih)$/i.test(lines[i])){
+     status=lines[i]; break;
+   }
+ }
 
- for(let i=0;i<blocks.length;i++){
-   const t=clean(blocks[i].textContent);
-   if(t.length>=40 && /[\u0600-\u06FF]/.test(t)){
-     // Jangan mengambil navigasi/menu yang kebetulan memiliki Arab.
-     const arabChars=(t.match(/[\u0600-\u06FF]/g)||[]).length;
-     if(arabChars>=8){
-       arab=t; arabIndex=i; break;
+ // Cari BARIS Arab, bukan elemen div besar.
+ const arabIndex=lines.findIndex((x,i)=>
+   i>marker+1 && /[\u0600-\u06FF]/.test(x) &&
+   (x.match(/[\u0600-\u06FF]/g)||[]).length>=10
+ );
+ if(arabIndex<0) return null;
+
+ const arab=lines[arabIndex];
+
+ // Cari "Selengkapnya Sembunyikan", lalu ambil teks setelahnya.
+ let expand=lines.findIndex((x,i)=>i>arabIndex && /Selengkapnya\s*Sembunyikan/i.test(x));
+
+ let translation="";
+ if(expand>=0){
+   for(let i=expand+1;i<lines.length;i++){
+     const x=lines[i];
+     if(x.length>80 && !/[\u0600-\u06FF]/.test(x) &&
+        !/^Simpan$|^Penjelasan$|^Komunitas$|^Follow/i.test(x)){
+       translation=x;
+       break;
      }
    }
  }
- if(!arab) return null;
 
- // Terjemahan biasanya blok teks Latin panjang setelah teks Arab.
- let translation="";
- for(let i=arabIndex+1;i<blocks.length;i++){
-   const t=clean(blocks[i].textContent);
-   if(t.length<80 || /[\u0600-\u06FF]/.test(t)) continue;
-   if(/^(Selengkapnya|Sembunyikan|Simpan|Penjelasan AI|Komunitas)/i.test(t)) continue;
-   // Ambil paragraf terjemahan, bukan menu/footer.
-   translation=t;
-   if(t.length>120) break;
+ // Fallback: cari kalimat Latin panjang setelah Arab.
+ if(!translation){
+   for(let i=arabIndex+1;i<lines.length;i++){
+     const x=lines[i];
+     if(x.length>100 && !/[\u0600-\u06FF]/.test(x)){
+       translation=x; break;
+     }
+   }
  }
+
  if(!translation) return null;
 
- return {kitab,bab,number,title,status,arab,translation,url};
+ return {kitab,number,title,status,arab,translation,url};
 }
 
 function render(d){
  document.getElementById("kitab").textContent=d.kitab;
- document.getElementById("meta").textContent=(d.bab?d.bab+" · ":"")+"No. "+d.number;
- document.getElementById("hadisStatus").textContent=d.status;
+ document.getElementById("meta").textContent="No. "+d.number;
+ document.getElementById("hadisStatus").textContent=d.status||"Hadis";
  document.getElementById("title").textContent=d.title;
  document.getElementById("arab").textContent=d.arab;
  document.getElementById("translation").textContent=d.translation;
  document.getElementById("source").textContent=d.url;
 }
-function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
+
+async function randomHadis(){
+ const btn=document.getElementById("btn");
+ const loading=document.getElementById("loading");
+ btn.disabled=true;
+ loading.textContent="Mengambil hadis...";
+
+ try{
+   let result=null;
+
+   for(let attempt=0;attempt<20 && !result;attempt++){
+     const book=BOOKS[Math.floor(Math.random()*BOOKS.length)];
+     const no=Math.floor(Math.random()*book[2])+1;
+     const url=`https://www.hadits.id/hadits/${book[0]}/${no}`;
+
+     const html=await getPage(url);
+     if(html) result=parseHadits(html,book,url);
+   }
+
+   if(!result) throw new Error("Gagal mengambil hadis dari Hadits.id.");
+
+   render(result);
+   loading.textContent="";
+ }catch(e){
+   loading.innerHTML='<span class="error">'+escapeHtml(e.message)+'</span>';
+ }finally{
+   btn.disabled=false;
+ }
+}
+
+function escapeHtml(s){
+ return String(s).replace(/[&<>"']/g,c=>({
+ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+ }[c]));
+}
+
 randomHadis();
 </script>
 </body>

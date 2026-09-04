@@ -3,74 +3,53 @@ export default {
     const cors = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type"
+      "Access-Control-Allow-Headers": "*"
     };
 
-    if (request.method === "OPTIONS") {
-      return new Response(null, { headers: cors });
-    }
+    if (request.method === "OPTIONS") return new Response(null,{headers:cors});
 
-    const url = new URL(request.url);
+    const u=new URL(request.url);
 
-    if (url.pathname === "/scrape") {
-      const target = url.searchParams.get("url");
+    if(u.pathname==="/scrape"){
+      const target=u.searchParams.get("url");
+      if(!target) return json({error:"url wajib diisi"},400,cors);
 
-      if (!target) {
-        return Response.json(
-          { error: "Parameter url wajib diisi." },
-          { status: 400, headers: cors }
-        );
-      }
-
-      let targetUrl;
+      let parsed;
       try {
-        targetUrl = new URL(target);
-        if (!["http:", "https:"].includes(targetUrl.protocol)) {
-          throw new Error("Hanya URL HTTP/HTTPS yang diperbolehkan.");
-        }
+        parsed=new URL(target);
+        if(!["http:","https:"].includes(parsed.protocol)) throw 0;
       } catch {
-        return Response.json(
-          { error: "URL tidak valid." },
-          { status: 400, headers: cors }
-        );
+        return json({error:"URL tidak valid"},400,cors);
       }
 
       try {
-        const response = await fetch(targetUrl.toString(), {
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml"
-          },
-          redirect: "follow"
-        });
-
-        const html = await response.text();
-
-        return new Response(
-          JSON.stringify({
-            success: response.ok,
-            status: response.status,
-            finalUrl: response.url,
-            html
-          }),
-          {
-            status: response.ok ? 200 : response.status,
-            headers: {
-              ...cors,
-              "Content-Type": "application/json; charset=UTF-8"
-            }
+        const r=await fetch(parsed.toString(),{
+          redirect:"follow",
+          headers:{
+            "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140 Safari/537.36",
+            "Accept":"text/html,application/xhtml+xml"
           }
-        );
-      } catch (error) {
-        return Response.json(
-          { error: "Gagal mengambil halaman: " + error.message },
-          { status: 500, headers: cors }
-        );
+        });
+        const html=await r.text();
+
+        return json({
+          success:r.ok,
+          status:r.status,
+          finalUrl:r.url,
+          html:html
+        },r.ok?200:r.status,cors);
+      } catch(e) {
+        return json({error:String(e)},500,cors);
       }
     }
 
-    return new Response("Web Scraper API aktif. Gunakan /scrape?url=https://example.com", {
-      headers: cors
-    });
+    return new Response("OK",{headers:{"Content-Type":"text/plain",...cors}});
   }
 };
+
+function json(data,status,extra={}){
+  return new Response(JSON.stringify(data),{
+    status,
+    headers:{"Content-Type":"application/json;charset=UTF-8",...extra}
+  });
+}
