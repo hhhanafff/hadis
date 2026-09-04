@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a">
+  <title>Hadis Hari Ini</title>
+  <meta name="description" content="Satu hadis random setiap kali dibuka atau diperbarui.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#f6f7f9;--surface:#fff;--text:#111827;--muted:#6b7280;
+      --line:#e5e7eb;--accent:#111827;--accent2:#334155;--shadow:0 18px 55px rgba(15,23,42,.09)
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text)}
+    body{font-family:"DM Sans",system-ui,sans-serif}
+    .shell{width:min(100% - 28px,760px);margin:auto;padding:18px 0 34px}
+    header{display:flex;align-items:center;justify-content:space-between;padding:4px 2px 28px}
+    .brand{font-weight:700;letter-spacing:-.03em;font-size:18px}
+    .icon-btn{width:42px;height:42px;border:1px solid var(--line);background:var(--surface);border-radius:50%;display:grid;place-items:center;cursor:pointer;color:var(--text)}
+    .icon-btn svg{width:19px;height:19px}
+    .hero{padding:28px 0 22px}
+    .eyebrow{font-size:12px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+    h1{font-size:clamp(30px,8vw,48px);line-height:1.03;letter-spacing:-.055em;margin:0;max-width:620px}
+    .sub{color:var(--muted);font-size:14px;margin-top:13px}
+    .card{background:var(--surface);border:1px solid var(--line);border-radius:26px;box-shadow:var(--shadow);padding:clamp(24px,6vw,46px);position:relative;overflow:hidden}
+    .meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:28px}
+    .pill{font-size:12px;font-weight:700;background:#f1f5f9;padding:8px 11px;border-radius:999px}
+    .arabic{font-family:Amiri,serif;font-size:clamp(29px,8vw,46px);line-height:1.9;text-align:right;direction:rtl;margin:0 0 28px}
+    .translation{font-size:clamp(17px,4.4vw,21px);line-height:1.72;letter-spacing:-.015em;margin:0}
+    .source{border-top:1px solid var(--line);margin-top:30px;padding-top:18px;color:var(--muted);font-size:13px}
+    .actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+    button.action{height:52px;border-radius:15px;border:1px solid var(--line);background:var(--surface);color:var(--text);font:600 14px "DM Sans";cursor:pointer}
+    button.primary{background:var(--accent);border-color:var(--accent);color:white}
+    button:active{transform:scale(.985)}
+    .status{text-align:center;min-height:22px;color:var(--muted);font-size:12px;margin-top:13px}
+    .skeleton{display:none}
+    .loading .content{display:none}.loading .skeleton{display:block}
+    .sk{background:linear-gradient(90deg,#f1f5f9,#e5e7eb,#f1f5f9);background-size:200% 100%;animation:sh 1.2s infinite;border-radius:10px}
+    .sk.a{height:180px;margin-bottom:25px}.sk.t{height:105px}.sk.m{height:18px;width:45%;margin-bottom:14px}
+    @keyframes sh{to{background-position:-200% 0}}
+    .fade{animation:fade .3s ease}
+    @keyframes fade{from{opacity:.25;transform:translateY(5px)}to{opacity:1;transform:none}}
+    footer{text-align:center;color:var(--muted);font-size:11px;margin-top:25px}
+    body.dark{--bg:#0b1120;--surface:#111827;--text:#f8fafc;--muted:#94a3b8;--line:#243244;--accent:#f8fafc;--accent2:#cbd5e1;--shadow:0 18px 55px rgba(0,0,0,.24)}
+    body.dark .pill{background:#1e293b}body.dark button.primary{color:#0f172a}
+    @media(min-width:700px){.shell{padding-top:28px}.hero{padding-top:45px}.actions{grid-template-columns:180px 180px}}
+  </style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <div class="brand" id="brand">Hadis</div>
+    <button class="icon-btn" id="theme" aria-label="Ganti tema">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3 6.6 6.6 0 0 0 21 12.8Z"/></svg>
+    </button>
+  </header>
+
+  <section class="hero">
+    <div class="eyebrow">Hadis hari ini</div>
+    <h1>Satu hadis. Satu menit untuk merenung.</h1>
+    <div class="sub">Setiap kali diperbarui, hadis dipilih secara acak.</div>
+  </section>
+
+  <main class="card" id="card">
+    <div class="skeleton"><div class="sk m"></div><div class="sk a"></div><div class="sk t"></div></div>
+    <div class="content">
+      <div class="meta">
+        <span class="pill" id="collection">—</span>
+        <span class="pill" id="number">Hadis —</span>
+      </div>
+      <p class="arabic" id="arabic">Memuat hadis…</p>
+      <p class="translation" id="translation"></p>
+      <div class="source" id="source"></div>
+    </div>
+  </main>
+
+  <div class="actions">
+    <button class="action primary" id="next">Hadis berikutnya</button>
+    <button class="action" id="share">Bagikan</button>
+  </div>
+  <div class="status" id="status"></div>
+  <footer>Data hadis diambil dari halaman publik Hadits.id.</footer>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const card=$("card");
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function setLoading(v){card.classList.toggle("loading",v)}
+async function loadHadith(){
+  setLoading(true);$("status").textContent="Memuat hadis…";
+  try{
+    const r=await fetch("/api/random",{cache:"no-store"});
+    const j=await r.json();
+    if(!r.ok||!j.ok) throw new Error(j.error||"Gagal mengambil hadis");
+    $("collection").textContent=esc(j.data.collection);
+    $("number").textContent="Hadis "+j.data.number;
+    $("arabic").textContent=j.data.arabic||"";
+    $("translation").textContent=j.data.translation||"";
+    $("source").textContent=(j.data.kitab?j.data.kitab+" · ":"")+"Sumber: Hadits.id";
+    card.classList.remove("fade");void card.offsetWidth;card.classList.add("fade");
+    $("status").textContent="";
+  }catch(e){$("status").textContent=e.message||"Terjadi kesalahan."}
+  finally{setLoading(false)}
+}
+$("next").onclick=loadHadith;
+$("share").onclick=async()=>{
+  const text=`${$("translation").textContent}\n\n${$("source").textContent}`;
+  if(navigator.share){try{await navigator.share({title:"Hadis Hari Ini",text})}catch{}}
+  else{await navigator.clipboard?.writeText(text);$("status").textContent="Hadis disalin."}
+};
+$("theme").onclick=()=>{document.body.classList.toggle("dark");localStorage.theme=document.body.classList.contains("dark")?"dark":"light"};
+if(localStorage.theme==="dark")document.body.classList.add("dark");
+loadHadith();
+</script>
+</body>
+</html>
