@@ -1,44 +1,45 @@
-const SOURCES = {
-  bukhari: {
+const BOOKS = [
+  {
+    slug: "bukhari",
     name: "Shahih Al-Bukhari",
     max: 7563
   },
-
-  muslim: {
+  {
+    slug: "muslim",
     name: "Shahih Muslim",
     max: 3033
   },
-
-  abudawud: {
+  {
+    slug: "abudawud",
     name: "Sunan Abu Dawud",
     max: 5274
   },
-
-  tirmidzi: {
+  {
+    slug: "tirmidzi",
     name: "Jami' At-Tirmidzi",
     max: 3956
   },
-
-  nasai: {
+  {
+    slug: "nasai",
     name: "Sunan An-Nasa'i",
     max: 5758
   },
-
-  ibnumajah: {
+  {
+    slug: "ibnumajah",
     name: "Sunan Ibnu Majah",
     max: 4341
   },
-
-  ahmad: {
+  {
+    slug: "ahmad",
     name: "Musnad Ahmad",
     max: 27647
   }
-};
+];
 
 
-/* =========================================
-   DECODE HTML
-========================================= */
+// ========================================
+// HTML ENTITY DECODER
+// ========================================
 
 function decodeHTML(text) {
 
@@ -46,7 +47,8 @@ function decodeHTML(text) {
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
     .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&#x27;/gi, "'")
+    .replace(/&#39;/gi, "'")
+    .replace(/&#x27;/gi, "'")
     .replace(/&hellip;/gi, "…")
 
     .replace(
@@ -67,146 +69,189 @@ function decodeHTML(text) {
 }
 
 
-/* =========================================
-   HTML → TEXT
-========================================= */
+// ========================================
+// HTML → TEXT
+// ========================================
 
-function htmlToText(html) {
+function cleanHTML(html) {
 
-  let text = html;
+  return decodeHTML(
 
+    html
+      .replace(
+        /<script[\s\S]*?<\/script>/gi,
+        ""
+      )
 
-  /* Hapus script */
+      .replace(
+        /<style[\s\S]*?<\/style>/gi,
+        ""
+      )
 
-  text = text.replace(
-    /<script\b[^>]*>[\s\S]*?<\/script>/gi,
-    " "
-  );
+      .replace(
+        /<br\s*\/?>/gi,
+        "\n"
+      )
 
+      .replace(
+        /<\/p>/gi,
+        "\n"
+      )
 
-  /* Hapus style */
+      .replace(
+        /<\/div>/gi,
+        "\n"
+      )
 
-  text = text.replace(
-    /<style\b[^>]*>[\s\S]*?<\/style>/gi,
-    " "
-  );
+      .replace(
+        /<\/section>/gi,
+        "\n"
+      )
 
+      .replace(
+        /<\/article>/gi,
+        "\n"
+      )
 
-  /*
-    Beri pemisah sebelum elemen
-    block supaya teks tidak
-    menempel semuanya.
-  */
+      .replace(
+        /<\/li>/gi,
+        "\n"
+      )
 
-  text = text.replace(
-    /<(br|hr|\/p|\/div|\/li|\/h1|\/h2|\/h3|\/h4|\/h5|\/h6|\/section|\/article|\/main|\/blockquote|\/header|\/footer)>/gi,
-    "\n"
-  );
+      .replace(
+        /<[^>]+>/g,
+        ""
+      )
 
-
-  /* Hapus tag HTML */
-
-  text = text.replace(
-    /<[^>]+>/g,
-    " "
-  );
-
-
-  /* Decode entity */
-
-  text = decodeHTML(text);
-
-
-  return text
-    .split("\n")
-    .map(
-      line =>
-        line
-          .replace(/\s+/g, " ")
-          .trim()
-    )
-    .filter(Boolean);
-
-}
-
-
-/* =========================================
-   CARI TEKS ARAB
-========================================= */
-
-function isArabic(text) {
-
-  return (
-    /[\u0600-\u06FF]/.test(text) &&
-    text.length > 20
   );
 
 }
 
 
-/* =========================================
-   PARSE HADIS
-========================================= */
+// ========================================
+// EXTRACT HADIS
+// ========================================
 
-function parseHadith(
+function extractHadith(
   html,
-  source,
+  book,
   number,
   url
 ) {
 
+  const text =
+    cleanHTML(html);
+
+
   const lines =
-    htmlToText(html);
+    text
+      .split("\n")
+      .map(
+        x =>
+          x
+            .replace(/\s+/g, " ")
+            .trim()
+      )
+      .filter(Boolean);
 
 
-  /*
-    Cari posisi teks Arab.
-  */
+  // --------------------------------------
+  // CARI TEKS ARAB
+  // --------------------------------------
 
-  const arabicIndex =
-    lines.findIndex(
-      line =>
-        isArabic(line)
-    );
+  let arabic = "";
+
+  let arabicIndex = -1;
 
 
-  if (arabicIndex === -1) {
+  for (
+    let i = 0;
+    i < lines.length;
+    i++
+  ) {
+
+    const line =
+      lines[i];
+
+
+    if (
+      /[\u0600-\u06FF]/.test(line) &&
+      line.length > 40
+    ) {
+
+      arabic =
+        line;
+
+      arabicIndex =
+        i;
+
+      break;
+
+    }
+
+  }
+
+
+  if (
+    arabicIndex === -1
+  ) {
 
     return null;
 
   }
 
 
-  const arabic =
-    lines[arabicIndex];
-
-
-  /*
-    Cari "Selengkapnya Sembunyikan".
-    
-    Pada halaman Hadits.id,
-    terjemahan berada setelah
-    bagian tersebut.
-  */
+  // --------------------------------------
+  // CARI TERJEMAHAN
+  // --------------------------------------
 
   let translation = "";
 
 
-  const moreIndex =
-    lines.findIndex(
-      (line, index) =>
-        index > arabicIndex &&
-        /Selengkapnya/i.test(line)
-    );
+  /*
+    Pada halaman Hadits.id:
+
+    Arab
+    ↓
+    transliterasi
+    ↓
+    "Selengkapnya Sembunyikan"
+    ↓
+    terjemahan
+  */
 
 
-  if (moreIndex !== -1) {
+  let moreIndex = -1;
+
+
+  for (
+    let i = arabicIndex + 1;
+    i < lines.length;
+    i++
+  ) {
+
+    if (
+      /Selengkapnya/i.test(
+        lines[i]
+      )
+    ) {
+
+      moreIndex = i;
+
+      break;
+
+    }
+
+  }
+
+
+  if (
+    moreIndex !== -1
+  ) {
 
     for (
       let i = moreIndex + 1;
-
       i < lines.length;
-
       i++
     ) {
 
@@ -214,13 +259,8 @@ function parseHadith(
         lines[i];
 
 
-      /*
-        Lewati teks UI.
-      */
-
       if (
-        !line ||
-        line.length < 30
+        line.length < 40
       ) {
 
         continue;
@@ -229,35 +269,19 @@ function parseHadith(
 
 
       if (
-        /^(Sembunyikan|Simpan|Penjelasan|Follow|Komunitas|Hasil untuk|Hadits\.id|Lihat teks hadits)/i
+        /[\u0600-\u06FF]/.test(
+          line
+        )
+      ) {
+
+        continue;
+
+      }
+
+
+      if (
+        /^(Sembunyikan|Simpan|Penjelasan|Follow|Komunitas|Hadits\.id)/i
           .test(line)
-      ) {
-
-        continue;
-
-      }
-
-
-      /*
-        Jangan ambil teks Arab.
-      */
-
-      if (
-        /[\u0600-\u06FF]/.test(line)
-      ) {
-
-        continue;
-
-      }
-
-
-      /*
-        Jangan ambil transliterasi.
-      */
-
-      if (
-        /^[a-z0-9\s.,'"()\-]+$/i.test(line) &&
-        line.length < 300
       ) {
 
         continue;
@@ -275,21 +299,15 @@ function parseHadith(
   }
 
 
-  /*
-    Fallback.
-    
-    Kalau "Selengkapnya" tidak
-    berhasil ditemukan, cari teks
-    Indonesia setelah Arab.
-  */
+  // --------------------------------------
+  // FALLBACK TRANSLATION
+  // --------------------------------------
 
   if (!translation) {
 
     for (
       let i = arabicIndex + 1;
-
       i < lines.length;
-
       i++
     ) {
 
@@ -298,7 +316,7 @@ function parseHadith(
 
 
       if (
-        line.length < 50
+        line.length < 60
       ) {
 
         continue;
@@ -307,7 +325,9 @@ function parseHadith(
 
 
       if (
-        /[\u0600-\u06FF]/.test(line)
+        /[\u0600-\u06FF]/.test(
+          line
+        )
       ) {
 
         continue;
@@ -316,8 +336,9 @@ function parseHadith(
 
 
       if (
-        /^(Selengkapnya|Sembunyikan|Simpan|Penjelasan|Follow|Komunitas)/i
-          .test(line)
+        /^[a-z0-9\s.,'"()\-]+$/i.test(
+          line
+        )
       ) {
 
         continue;
@@ -335,77 +356,7 @@ function parseHadith(
   }
 
 
-  /*
-    Cari kitab.
-  */
-
-  let kitab = "";
-
-
-  /*
-    Cari teks yang diawali
-    "Kitab".
-  */
-
-  const kitabLine =
-    lines.find(
-      line =>
-        /^Kitab\s+/i.test(line)
-    );
-
-
-  if (kitabLine) {
-
-    kitab =
-      kitabLine
-        .replace(
-          /^Kitab\s+/i,
-          ""
-        )
-        .trim();
-
-  }
-
-
-  /*
-    Fallback dari judul halaman.
-  */
-
-  if (!kitab) {
-
-    const titleLine =
-      lines.find(
-        line =>
-          /No\.\s*${number}/i.test(line)
-      );
-
-
-    if (titleLine) {
-
-      const match =
-        titleLine.match(
-          /Kitab\s+(.+?)(?:\s+·|$)/i
-        );
-
-
-      if (match) {
-
-        kitab =
-          match[1].trim();
-
-      }
-
-    }
-
-  }
-
-
-  /*
-    Pastikan translation ada.
-  */
-
   if (
-    !arabic ||
     !translation
   ) {
 
@@ -414,10 +365,33 @@ function parseHadith(
   }
 
 
+  // --------------------------------------
+  // KITAB
+  // --------------------------------------
+
+  let kitab = "";
+
+
+  const kitabMatch =
+    text.match(
+      /Kitab\s+([^·\n]+?)\s*·\s*No\.\s*\d+/i
+    );
+
+
+  if (
+    kitabMatch
+  ) {
+
+    kitab =
+      kitabMatch[1].trim();
+
+  }
+
+
   return {
 
     collection:
-      source.name,
+      book.name,
 
     number:
       number,
@@ -439,51 +413,40 @@ function parseHadith(
 }
 
 
-/* =========================================
-   RANDOM HADIS
-========================================= */
+// ========================================
+// RANDOM HADIS
+// ========================================
 
 async function getRandomHadith() {
 
-  const keys =
-    Object.keys(SOURCES);
-
-
   /*
-    Coba sampai 20 kali.
-
-    Karena nomor hadis random
-    belum tentu tersedia.
+    Coba sampai 30 kali.
   */
 
   for (
     let attempt = 0;
-    attempt < 20;
+    attempt < 30;
     attempt++
   ) {
 
-    const key =
-      keys[
+    const book =
+      BOOKS[
         Math.floor(
           Math.random() *
-          keys.length
+          BOOKS.length
         )
       ];
-
-
-    const source =
-      SOURCES[key];
 
 
     const number =
       Math.floor(
         Math.random() *
-        source.max
+        book.max
       ) + 1;
 
 
     const url =
-      `https://www.hadits.id/hadits/${key}/${number}`;
+      `https://www.hadits.id/hadits/${book.slug}/${number}`;
 
 
     try {
@@ -495,29 +458,16 @@ async function getRandomHadith() {
             headers: {
 
               "User-Agent":
-                "Mozilla/5.0 (compatible; HadisRandom/1.0)",
+                "Mozilla/5.0",
 
               "Accept":
-                "text/html,application/xhtml+xml"
-
-            },
-
-            cf: {
-
-              cacheTtl: 300,
-
-              cacheEverything: true
+                "text/html"
 
             }
 
           }
         );
 
-
-      /*
-        Kalau 404 atau error,
-        coba nomor lain.
-      */
 
       if (
         !response.ok
@@ -533,18 +483,13 @@ async function getRandomHadith() {
 
 
       const hadith =
-        parseHadith(
+        extractHadith(
           html,
-          source,
+          book,
           number,
           url
         );
 
-
-      /*
-        Kalau parsing berhasil,
-        langsung return.
-      */
 
       if (
         hadith &&
@@ -558,7 +503,9 @@ async function getRandomHadith() {
 
     }
 
-    catch (error) {
+    catch (
+      error
+    ) {
 
       continue;
 
@@ -568,19 +515,17 @@ async function getRandomHadith() {
 
 
   throw new Error(
-    "Gagal mengambil hadis dari Hadits.id."
+    "Tidak berhasil mengambil hadis."
   );
 
 }
 
 
-/* =========================================
-   CLOUDFLARE PAGES FUNCTION
-========================================= */
+// ========================================
+// CLOUDFLARE PAGES FUNCTION
+// ========================================
 
-export async function onRequestGet(
-  context
-) {
+export async function onRequestGet() {
 
   try {
 
@@ -618,7 +563,9 @@ export async function onRequestGet(
 
   }
 
-  catch (error) {
+  catch (
+    error
+  ) {
 
     return new Response(
 
@@ -627,14 +574,13 @@ export async function onRequestGet(
         ok: false,
 
         error:
-          error.message ||
-          "Gagal mengambil hadis."
+          error.message
 
       }),
 
       {
 
-        status: 502,
+        status: 500,
 
         headers: {
 
